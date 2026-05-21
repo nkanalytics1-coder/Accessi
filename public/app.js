@@ -51,11 +51,10 @@ async function checkAuth() {
   else document.getElementById('login-screen').classList.remove('hidden');
 }
 
-function showApp() {
+async function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-screen').classList.remove('hidden');
-  loadUsers();
-  loadTools();
+  await Promise.all([loadUsers(), loadTools()]);
 }
 
 // Tabs
@@ -66,7 +65,7 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     const tab = btn.dataset.tab;
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
     document.getElementById(`tab-${tab}`).classList.remove('hidden');
-    if (tab === 'associations') renderAssociations();
+    if (tab === 'associations') Promise.all([loadUsers(), loadTools()]).then(renderAssociations);
   });
 });
 
