@@ -14,6 +14,15 @@ const SUPERADMIN_PASS = ')z5fmwkQVrBKao5LvQ0kqhxm';
 const SECRET = 'gu-secret-k9mP2xQ7rT4vL1nZ';
 const AUTH_TOKEN = crypto.createHmac('sha256', SECRET).update(SUPERADMIN_PASS).digest('hex');
 
+function validatePassword(p) {
+  if (!p || p.length < 8) return 'Password troppo corta (min 8 caratteri)';
+  if (!/[A-Z]/.test(p)) return 'Manca almeno una lettera maiuscola';
+  if (!/[a-z]/.test(p)) return 'Manca almeno una lettera minuscola';
+  if (!/[0-9]/.test(p)) return 'Manca almeno un numero';
+  if (!/[^A-Za-z0-9]/.test(p)) return 'Manca almeno un carattere speciale';
+  return null;
+}
+
 const COOKIE_OPTS = {
   httpOnly: true,
   maxAge: 8 * 60 * 60 * 1000,
@@ -115,7 +124,8 @@ app.delete('/api/users/:id', requireAuth, async (req, res) => {
 // Change password (admin sets directly)
 app.post('/api/users/:id/set-password', requireAuth, async (req, res) => {
   const { password } = req.body;
-  if (!password || password.length < 6) return res.status(400).json({ error: 'Password troppo corta (min 6 caratteri)' });
+  const pwErr = validatePassword(password);
+  if (pwErr) return res.status(400).json({ error: pwErr });
   const hash = await bcrypt.hash(password, 12);
   const { rows } = await pool.query(
     'UPDATE users SET password_hash=$1 WHERE id=$2 RETURNING id',
@@ -187,7 +197,8 @@ app.get('/api/reset-token', async (req, res) => {
 app.post('/api/reset-password', async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) return res.status(400).json({ error: 'Token e password obbligatori' });
-  if (password.length < 6) return res.status(400).json({ error: 'Password troppo corta (min 6 caratteri)' });
+  const pwErr = validatePassword(password);
+  if (pwErr) return res.status(400).json({ error: pwErr });
 
   const { rows } = await pool.query(
     'SELECT * FROM password_reset_tokens WHERE token=$1 AND used=FALSE AND expires_at > NOW()',

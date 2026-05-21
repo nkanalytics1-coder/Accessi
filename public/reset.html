@@ -34,8 +34,13 @@
     .msg-error { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: #fca5a5; }
     .msg-success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
     .hidden { display: none !important; }
-    .strength-bar { height: 4px; border-radius: 2px; margin-top: 6px; background: var(--border); overflow: hidden; }
+    .strength-bar { height: 4px; border-radius: 2px; margin-top: 8px; background: var(--border); overflow: hidden; }
     .strength-fill { height: 100%; border-radius: 2px; transition: width .2s, background .2s; }
+    .requirements { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+    .req { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); transition: color .15s; }
+    .req.ok { color: #86efac; }
+    .req::before { content: '✕'; font-size: 11px; color: #ef4444; flex-shrink: 0; }
+    .req.ok::before { content: '✓'; color: #22c55e; }
   </style>
 </head>
 <body>
@@ -67,8 +72,15 @@
     <form id="reset-form">
       <div class="field">
         <label>Nuova Password</label>
-        <input type="password" id="new-password" placeholder="Min 6 caratteri" required autocomplete="new-password">
+        <input type="password" id="new-password" placeholder="Min 8 caratteri" required autocomplete="new-password">
         <div class="strength-bar"><div class="strength-fill" id="strength-fill" style="width:0%"></div></div>
+        <div class="requirements">
+          <span class="req" id="req-length">Minimo 8 caratteri</span>
+          <span class="req" id="req-upper">Lettera maiuscola</span>
+          <span class="req" id="req-lower">Lettera minuscola</span>
+          <span class="req" id="req-number">Numero</span>
+          <span class="req" id="req-special">Carattere speciale</span>
+        </div>
       </div>
       <div class="field">
         <label>Conferma Password</label>
@@ -97,18 +109,33 @@
     states.forEach(s => document.getElementById(`state-${s}`).classList.toggle('hidden', s !== state));
   }
 
-  // Password strength indicator
+  const rules = [
+    { id: 'req-length',  test: v => v.length >= 8 },
+    { id: 'req-upper',   test: v => /[A-Z]/.test(v) },
+    { id: 'req-lower',   test: v => /[a-z]/.test(v) },
+    { id: 'req-number',  test: v => /[0-9]/.test(v) },
+    { id: 'req-special', test: v => /[^A-Za-z0-9]/.test(v) },
+  ];
+
+  function checkPassword(v) {
+    return rules.map(r => {
+      const ok = r.test(v);
+      document.getElementById(r.id).classList.toggle('ok', ok);
+      return ok;
+    });
+  }
+
+  function isPasswordValid(v) {
+    return checkPassword(v).every(Boolean);
+  }
+
   document.getElementById('new-password').addEventListener('input', function() {
-    const v = this.value;
-    let score = 0;
-    if (v.length >= 6) score++;
-    if (v.length >= 10) score++;
-    if (/[A-Z]/.test(v) && /[0-9]/.test(v)) score++;
-    if (/[^A-Za-z0-9]/.test(v)) score++;
-    const colors = ['#ef4444','#f97316','#eab308','#22c55e'];
+    const results = checkPassword(this.value);
+    const passed = results.filter(Boolean).length;
+    const colors = ['#ef4444','#f97316','#f97316','#eab308','#22c55e'];
     const fill = document.getElementById('strength-fill');
-    fill.style.width = `${(score / 4) * 100}%`;
-    fill.style.background = colors[score - 1] || 'transparent';
+    fill.style.width = `${(passed / rules.length) * 100}%`;
+    fill.style.background = colors[passed - 1] || 'transparent';
   });
 
   async function init() {
@@ -132,6 +159,11 @@
     errEl.classList.add('hidden');
     const password = document.getElementById('new-password').value;
     const confirm = document.getElementById('confirm-password').value;
+    if (!isPasswordValid(password)) {
+      errEl.textContent = 'La password non soddisfa tutti i requisiti.';
+      errEl.classList.remove('hidden');
+      return;
+    }
     if (password !== confirm) {
       errEl.textContent = 'Le password non coincidono.';
       errEl.classList.remove('hidden');
