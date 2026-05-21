@@ -1,6 +1,7 @@
 const express = require('express');
-const cookieSession = require('cookie-session');
+const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const path = require('path');
 const { pool } = require('./db');
 
@@ -9,20 +10,25 @@ const PORT = process.env.PORT || 4000;
 
 const SUPERADMIN_USER = 'Superadmin';
 const SUPERADMIN_PASS = ')z5fmwkQVrBKao5LvQ0kqhxm';
+const SECRET = 'gu-secret-k9mP2xQ7rT4vL1nZ';
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieSession({
-  name: 'gu_session',
-  secret: 'gestioneutenti-secret-2024',
+// Token stateless: HMAC(password, secret) — stesso valore su ogni istanza serverless
+const AUTH_TOKEN = crypto.createHmac('sha256', SECRET).update(SUPERADMIN_PASS).digest('hex');
+
+const COOKIE_OPTS = {
+  httpOnly: true,
   maxAge: 8 * 60 * 60 * 1000,
   sameSite: 'lax',
   secure: process.env.NODE_ENV === 'production',
-}));
+};
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 function requireAuth(req, res, next) {
-  if (req.session && req.session.authenticated) return next();
+  if (req.cookies && req.cookies.gu_auth === AUTH_TOKEN) return next();
   res.status(401).json({ error: 'Non autorizzato' });
 }
 
@@ -30,7 +36,7 @@ function requireAuth(req, res, next) {
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   if (username === SUPERADMIN_USER && password === SUPERADMIN_PASS) {
-    req.session.authenticated = true;
+    res.cookie('gu_auth', AUTH_TOKEN, COOKIE_OPTS);
     res.json({ ok: true });
   } else {
     res.status(401).json({ error: 'Credenziali non valide' });
@@ -38,12 +44,12 @@ app.post('/api/login', (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session = null;
+  res.clearCookie('gu_auth');
   res.json({ ok: true });
 });
 
 app.get('/api/me', (req, res) => {
-  res.json({ authenticated: !!(req.session && req.session.authenticated) });
+  res.json({ authenticated: !!(req.cookies && req.cookies.gu_auth === AUTH_TOKEN) });
 });
 
 // Users
