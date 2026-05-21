@@ -1,8 +1,8 @@
 const express = require('express');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const path = require('path');
-const { pool, init } = require('./db');
+const { pool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -12,16 +12,17 @@ const SUPERADMIN_PASS = ')z5fmwkQVrBKao5LvQ0kqhxm';
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(session({
+app.use(cookieSession({
+  name: 'gu_session',
   secret: 'gestioneutenti-secret-2024',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000 },
+  maxAge: 8 * 60 * 60 * 1000,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production',
 }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 function requireAuth(req, res, next) {
-  if (req.session.authenticated) return next();
+  if (req.session && req.session.authenticated) return next();
   res.status(401).json({ error: 'Non autorizzato' });
 }
 
@@ -37,11 +38,12 @@ app.post('/api/login', (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
+  req.session = null;
+  res.json({ ok: true });
 });
 
 app.get('/api/me', (req, res) => {
-  res.json({ authenticated: !!req.session.authenticated });
+  res.json({ authenticated: !!(req.session && req.session.authenticated) });
 });
 
 // Users
@@ -135,7 +137,6 @@ app.delete('/api/tools/:id', requireAuth, async (req, res) => {
 // User-Tool associations
 app.post('/api/users/:userId/tools/:toolId', requireAuth, async (req, res) => {
   const { userId, toolId } = req.params;
-  console.log(`ADD tool ${toolId} to user ${userId}`);
   await pool.query(
     'INSERT INTO user_tools (user_id, tool_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
     [userId, toolId]
@@ -156,9 +157,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Errore interno del server' });
 });
 
-init().then(() => {
+if (require.main === module) {
   app.listen(PORT, () => console.log(`Server avviato su http://localhost:${PORT}`));
-}).catch(err => {
-  console.error('Errore connessione DB:', err);
-  process.exit(1);
-});
+}
+
+module.exports = app;
