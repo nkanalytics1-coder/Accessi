@@ -267,17 +267,26 @@ function renderAssociations() {
 async function addToolToUser(userId, selectEl) {
   const toolId = selectEl.value;
   if (!toolId) return;
-  await api('POST', `/api/users/${userId}/tools/${toolId}`);
-  await loadUsers();
-  renderAssociations();
-  showToast('Tool associato');
+  try {
+    await api('POST', `/api/users/${userId}/tools/${toolId}`);
+    await Promise.all([loadUsers(), loadTools()]);
+    renderAssociations();
+    showToast('Tool associato');
+  } catch (err) {
+    showToast(err.message, 'error');
+    selectEl.value = '';
+  }
 }
 
 async function removeToolFromUser(userId, toolId) {
-  await api('DELETE', `/api/users/${userId}/tools/${toolId}`);
-  await loadUsers();
-  renderAssociations();
-  showToast('Associazione rimossa');
+  try {
+    await api('DELETE', `/api/users/${userId}/tools/${toolId}`);
+    await Promise.all([loadUsers(), loadTools()]);
+    renderAssociations();
+    showToast('Associazione rimossa');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 // Close modals on overlay click

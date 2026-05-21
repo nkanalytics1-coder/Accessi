@@ -134,9 +134,11 @@ app.delete('/api/tools/:id', requireAuth, async (req, res) => {
 
 // User-Tool associations
 app.post('/api/users/:userId/tools/:toolId', requireAuth, async (req, res) => {
+  const { userId, toolId } = req.params;
+  console.log(`ADD tool ${toolId} to user ${userId}`);
   await pool.query(
     'INSERT INTO user_tools (user_id, tool_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-    [req.params.userId, req.params.toolId]
+    [userId, toolId]
   );
   res.json({ ok: true });
 });
