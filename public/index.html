@@ -138,14 +138,47 @@
           <option value="admin">Admin</option>
         </select>
       </div>
-      <div class="field">
-        <label id="password-label">Password <span id="password-hint" style="font-weight:400;text-transform:none;color:var(--text-muted)">(lascia vuoto per non modificare)</span></label>
+      <div class="field" id="password-field-wrap">
+        <label>Password <span id="password-hint" style="font-weight:400;text-transform:none;color:var(--text-muted)">(lascia vuoto per non modificare)</span></label>
         <input type="password" id="user-password" autocomplete="new-password" placeholder="••••••••">
+      </div>
+      <div id="send-reset-wrap" class="field hidden">
+        <label class="checkbox-label" style="border:none;padding:0">
+          <input type="checkbox" id="send-reset-on-create">
+          Invia email per impostare la password
+        </label>
       </div>
       <div id="user-form-error" class="error-msg hidden"></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="closeUserModal()">Annulla</button>
         <button type="submit" class="btn btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL CAMBIO PASSWORD -->
+<div id="change-pw-modal" class="modal-overlay hidden">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h3>Cambia Password</h3>
+      <button class="modal-close" onclick="closeChangePwModal()">&#x2715;</button>
+    </div>
+    <form id="change-pw-form">
+      <input type="hidden" id="change-pw-user-id">
+      <p id="change-pw-user-name" style="color:var(--text-muted);font-size:13px;margin-bottom:16px"></p>
+      <div class="field">
+        <label>Nuova Password *</label>
+        <input type="password" id="change-pw-password" placeholder="Min 6 caratteri" required autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label>Conferma Password *</label>
+        <input type="password" id="change-pw-confirm" placeholder="Ripeti la password" required autocomplete="new-password">
+      </div>
+      <div id="change-pw-error" class="error-msg hidden"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeChangePwModal()">Annulla</button>
+        <button type="submit" class="btn btn-primary">Salva Password</button>
       </div>
     </form>
   </div>

@@ -17,7 +17,7 @@ function showToast(msg, type = 'success') {
   t.textContent = msg;
   t.className = `toast toast-${type}`;
   t.classList.remove('hidden');
-  setTimeout(() => t.classList.add('hidden'), 3000);
+  setTimeout(() => t.classList.add('hidden'), 3500);
 }
 
 // Auth
@@ -91,6 +91,14 @@ function renderUsers() {
       <td>
         <div class="actions">
           <button class="btn btn-ghost btn-sm" onclick="openUserModal(${u.id})">Modifica</button>
+          <button class="btn btn-ghost btn-sm" onclick="openChangePwModal(${u.id}, '${esc(u.name)}')">
+            <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:currentColor;flex-shrink:0"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+            Password
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="sendResetEmail(${u.id}, '${esc(u.name)}', this)">
+            <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:currentColor;flex-shrink:0"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            Invia Reset
+          </button>
           <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id}, '${esc(u.name)}')">Elimina</button>
         </div>
       </td>
@@ -100,13 +108,17 @@ function renderUsers() {
 
 function openUserModal(id) {
   const user = id ? allUsers.find(u => u.id === id) : null;
-  document.getElementById('user-modal-title').textContent = user ? 'Modifica Utente' : 'Nuovo Utente';
+  const isNew = !user;
+  document.getElementById('user-modal-title').textContent = isNew ? 'Nuovo Utente' : 'Modifica Utente';
   document.getElementById('user-id').value = user ? user.id : '';
   document.getElementById('user-name').value = user ? user.name : '';
   document.getElementById('user-email').value = user ? user.email : '';
   document.getElementById('user-role').value = user ? user.role : 'user';
   document.getElementById('user-password').value = '';
-  document.getElementById('password-hint').style.display = user ? '' : 'none';
+  document.getElementById('password-hint').style.display = isNew ? 'none' : '';
+  // Show reset checkbox only for new users
+  document.getElementById('send-reset-wrap').classList.toggle('hidden', !isNew);
+  document.getElementById('send-reset-on-create').checked = false;
   document.getElementById('user-form-error').classList.add('hidden');
   document.getElementById('user-modal').classList.remove('hidden');
 }
@@ -120,7 +132,9 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
   const errEl = document.getElementById('user-form-error');
   errEl.classList.add('hidden');
   const id = document.getElementById('user-id').value;
+  const isNew = !id;
   const password = document.getElementById('user-password').value;
+  const sendReset = isNew && document.getElementById('send-reset-on-create').checked;
   const payload = {
     name: document.getElementById('user-name').value.trim(),
     email: document.getElementById('user-email').value.trim(),
@@ -128,12 +142,25 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
     ...(password ? { password } : {}),
   };
   try {
-    if (id) await api('PUT', `/api/users/${id}`, payload);
-    else await api('POST', '/api/users', payload);
+    let result;
+    if (id) {
+      result = await api('PUT', `/api/users/${id}`, payload);
+    } else {
+      result = await api('POST', '/api/users', payload);
+    }
     closeUserModal();
     await loadUsers();
     if (document.querySelector('.nav-item.active').dataset.tab === 'associations') renderAssociations();
     showToast(id ? 'Utente aggiornato' : 'Utente creato');
+    // Send reset email if checkbox was checked
+    if (sendReset && result.id) {
+      try {
+        await api('POST', `/api/users/${result.id}/send-reset`);
+        showToast('Email di reset inviata a ' + payload.email);
+      } catch (err) {
+        showToast('Utente creato ma email non inviata: ' + err.message, 'error');
+      }
+    }
   } catch (err) {
     errEl.textContent = err.message;
     errEl.classList.remove('hidden');
@@ -146,6 +173,58 @@ async function deleteUser(id, name) {
   await loadUsers();
   if (document.querySelector('.nav-item.active').dataset.tab === 'associations') renderAssociations();
   showToast('Utente eliminato');
+}
+
+// Change password modal
+function openChangePwModal(userId, userName) {
+  document.getElementById('change-pw-user-id').value = userId;
+  document.getElementById('change-pw-user-name').textContent = `Utente: ${userName}`;
+  document.getElementById('change-pw-password').value = '';
+  document.getElementById('change-pw-confirm').value = '';
+  document.getElementById('change-pw-error').classList.add('hidden');
+  document.getElementById('change-pw-modal').classList.remove('hidden');
+}
+
+function closeChangePwModal() {
+  document.getElementById('change-pw-modal').classList.add('hidden');
+}
+
+document.getElementById('change-pw-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('change-pw-error');
+  errEl.classList.add('hidden');
+  const id = document.getElementById('change-pw-user-id').value;
+  const password = document.getElementById('change-pw-password').value;
+  const confirm = document.getElementById('change-pw-confirm').value;
+  if (password !== confirm) {
+    errEl.textContent = 'Le password non coincidono';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  try {
+    await api('POST', `/api/users/${id}/set-password`, { password });
+    closeChangePwModal();
+    showToast('Password aggiornata');
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.classList.remove('hidden');
+  }
+});
+
+// Send reset email
+async function sendResetEmail(userId, userName, btn) {
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.textContent = '...';
+  try {
+    await api('POST', `/api/users/${userId}/send-reset`);
+    showToast(`Email di reset inviata a ${userName}`);
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
 }
 
 // Tools
@@ -291,6 +370,7 @@ async function removeToolFromUser(userId, toolId) {
 
 // Close modals on overlay click
 document.getElementById('user-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeUserModal(); });
+document.getElementById('change-pw-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeChangePwModal(); });
 document.getElementById('tool-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeToolModal(); });
 
 function esc(str) {

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Imposta Password</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+      --border: #2e3250; --accent: #6366f1; --accent-hover: #4f52d0;
+      --danger: #ef4444; --success: #22c55e;
+      --text: #e2e8f0; --text-muted: #8892b0; --radius: 10px;
+    }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: radial-gradient(ellipse at 60% 40%, #1e1b4b 0%, #0f1117 70%); color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px 44px; width: 420px; max-width: 95vw; box-shadow: 0 4px 24px rgba(0,0,0,.4); }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+    .logo-mark { width: 36px; height: 36px; border-radius: 9px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: #fff; flex-shrink: 0; }
+    .logo-text { font-weight: 700; font-size: 15px; }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+    .user-info { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 22px; font-size: 13px; }
+    .user-info strong { display: block; margin-bottom: 2px; }
+    .user-info span { color: var(--text-muted); }
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    input[type="password"] { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); padding: 9px 12px; font-size: 14px; outline: none; transition: border .15s; }
+    input[type="password"]:focus { border-color: var(--accent); }
+    .btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: background .15s; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .msg { border-radius: 8px; padding: 12px 14px; font-size: 13px; margin-bottom: 16px; }
+    .msg-error { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: #fca5a5; }
+    .msg-success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); color: #86efac; }
+    .hidden { display: none !important; }
+    .strength-bar { height: 4px; border-radius: 2px; margin-top: 6px; background: var(--border); overflow: hidden; }
+    .strength-fill { height: 100%; border-radius: 2px; transition: width .2s, background .2s; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-mark">GU</div>
+    <span class="logo-text">Gestione Utenti</span>
+  </div>
+
+  <!-- Loading state -->
+  <div id="state-loading">
+    <p style="color:var(--text-muted)">Verifica link in corso…</p>
+  </div>
+
+  <!-- Invalid token -->
+  <div id="state-invalid" class="hidden">
+    <h1>Link non valido</h1>
+    <p class="subtitle">Il link è scaduto o già stato utilizzato. Contatta l'amministratore per riceverne uno nuovo.</p>
+  </div>
+
+  <!-- Form -->
+  <div id="state-form" class="hidden">
+    <h1>Imposta la tua password</h1>
+    <p class="subtitle">Scegli una password sicura di almeno 6 caratteri.</p>
+    <div id="user-info" class="user-info hidden">
+      <strong id="info-name"></strong>
+      <span id="info-email"></span>
+    </div>
+    <form id="reset-form">
+      <div class="field">
+        <label>Nuova Password</label>
+        <input type="password" id="new-password" placeholder="Min 6 caratteri" required autocomplete="new-password">
+        <div class="strength-bar"><div class="strength-fill" id="strength-fill" style="width:0%"></div></div>
+      </div>
+      <div class="field">
+        <label>Conferma Password</label>
+        <input type="password" id="confirm-password" placeholder="Ripeti la password" required autocomplete="new-password">
+      </div>
+      <div id="form-error" class="msg msg-error hidden"></div>
+      <button type="submit" class="btn btn-primary" id="submit-btn">Salva Password</button>
+    </form>
+  </div>
+
+  <!-- Success -->
+  <div id="state-success" class="hidden">
+    <div style="text-align:center;padding:8px 0">
+      <svg viewBox="0 0 24 24" style="width:48px;height:48px;fill:#22c55e;margin-bottom:16px"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      <h1 style="margin-bottom:8px">Password salvata!</h1>
+      <p style="color:var(--text-muted);font-size:13px">La tua password è stata impostata correttamente. Puoi chiudere questa pagina.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = new URLSearchParams(location.search).get('token');
+
+  const states = ['loading','invalid','form','success'];
+  function show(state) {
+    states.forEach(s => document.getElementById(`state-${s}`).classList.toggle('hidden', s !== state));
+  }
+
+  // Password strength indicator
+  document.getElementById('new-password').addEventListener('input', function() {
+    const v = this.value;
+    let score = 0;
+    if (v.length >= 6) score++;
+    if (v.length >= 10) score++;
+    if (/[A-Z]/.test(v) && /[0-9]/.test(v)) score++;
+    if (/[^A-Za-z0-9]/.test(v)) score++;
+    const colors = ['#ef4444','#f97316','#eab308','#22c55e'];
+    const fill = document.getElementById('strength-fill');
+    fill.style.width = `${(score / 4) * 100}%`;
+    fill.style.background = colors[score - 1] || 'transparent';
+  });
+
+  async function init() {
+    if (!token) { show('invalid'); return; }
+    try {
+      const res = await fetch(`/api/reset-token?token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (!res.ok) { show('invalid'); return; }
+      document.getElementById('info-name').textContent = data.name;
+      document.getElementById('info-email').textContent = data.email;
+      document.getElementById('user-info').classList.remove('hidden');
+      show('form');
+    } catch {
+      show('invalid');
+    }
+  }
+
+  document.getElementById('reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('form-error');
+    errEl.classList.add('hidden');
+    const password = document.getElementById('new-password').value;
+    const confirm = document.getElementById('confirm-password').value;
+    if (password !== confirm) {
+      errEl.textContent = 'Le password non coincidono.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Salvataggio…';
+    try {
+      const res = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      show('success');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Salva Password';
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>
