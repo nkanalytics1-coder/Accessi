@@ -148,6 +148,15 @@
           Invia email per impostare la password
         </label>
       </div>
+      <div id="tools-select-wrap" class="field hidden">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          Tool
+          <label class="checkbox-label" style="border:none;padding:0;font-size:12px;text-transform:none;letter-spacing:0;font-weight:500">
+            <input type="checkbox" id="select-all-tools"> Seleziona tutti
+          </label>
+        </label>
+        <div id="tools-checkboxes" class="tools-select-grid"></div>
+      </div>
       <div id="user-form-error" class="error-msg hidden"></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="closeUserModal()">Annulla</button>

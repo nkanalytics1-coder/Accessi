@@ -116,12 +116,47 @@ function openUserModal(id) {
   document.getElementById('user-role').value = user ? user.role : 'user';
   document.getElementById('user-password').value = '';
   document.getElementById('password-hint').style.display = isNew ? 'none' : '';
-  // Show reset checkbox only for new users
   document.getElementById('send-reset-wrap').classList.toggle('hidden', !isNew);
   document.getElementById('send-reset-on-create').checked = false;
+  // Tools selection (solo per nuovi utenti)
+  document.getElementById('tools-select-wrap').classList.toggle('hidden', !isNew);
+  if (isNew) renderToolCheckboxes();
   document.getElementById('user-form-error').classList.add('hidden');
   document.getElementById('user-modal').classList.remove('hidden');
 }
+
+function renderToolCheckboxes() {
+  const container = document.getElementById('tools-checkboxes');
+  if (!allTools.length) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:12px;grid-column:span 2">Nessun tool disponibile</span>';
+    document.getElementById('select-all-tools').disabled = true;
+    return;
+  }
+  document.getElementById('select-all-tools').disabled = false;
+  document.getElementById('select-all-tools').checked = false;
+  container.innerHTML = allTools.map(t => `
+    <label class="tool-check-label" id="label-tool-${t.id}">
+      <input type="checkbox" class="tool-cb" value="${t.id}" onchange="onToolCbChange()">
+      ${esc(t.name)}
+    </label>
+  `).join('');
+}
+
+function onToolCbChange() {
+  const cbs = document.querySelectorAll('.tool-cb');
+  const allChecked = [...cbs].every(cb => cb.checked);
+  document.getElementById('select-all-tools').checked = allChecked;
+  cbs.forEach(cb => {
+    document.getElementById(`label-tool-${cb.value}`).classList.toggle('checked', cb.checked);
+  });
+}
+
+document.getElementById('select-all-tools').addEventListener('change', function() {
+  document.querySelectorAll('.tool-cb').forEach(cb => {
+    cb.checked = this.checked;
+    document.getElementById(`label-tool-${cb.value}`).classList.toggle('checked', this.checked);
+  });
+});
 
 function closeUserModal() {
   document.getElementById('user-modal').classList.add('hidden');
@@ -147,6 +182,15 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
       result = await api('PUT', `/api/users/${id}`, payload);
     } else {
       result = await api('POST', '/api/users', payload);
+    }
+    // Associa tool selezionati (solo su creazione)
+    if (!id && result.id) {
+      const selected = [...document.querySelectorAll('.tool-cb:checked')].map(cb => cb.value);
+      if (selected.length) {
+        await Promise.all(selected.map(toolId =>
+          api('POST', `/api/users/${result.id}/tools/${toolId}`).catch(() => {})
+        ));
+      }
     }
     closeUserModal();
     await loadUsers();

@@ -122,3 +122,12 @@ tbody tr:hover { background: var(--surface2); }
 .toast.toast-error { border-color: rgba(239,68,68,.4); color: #fca5a5; }
 
 .empty-row td { text-align: center; color: var(--text-muted); padding: 32px; }
+
+.tools-select-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; max-height: 200px; overflow-y: auto; padding-right: 2px; }
+.tools-select-grid::-webkit-scrollbar { width: 4px; }
+.tools-select-grid::-webkit-scrollbar-track { background: transparent; }
+.tools-select-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.tool-check-label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text); cursor: pointer; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--border); transition: border-color .15s, background .15s; }
+.tool-check-label:hover { background: var(--surface2); }
+.tool-check-label input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+.tool-check-label.checked { border-color: rgba(99,102,241,.4); background: rgba(99,102,241,.08); }
