@@ -16,6 +16,10 @@ const SECRET = 'gu-secret-k9mP2xQ7rT4vL1nZ';
 const JWT_SECRET = SECRET + '-jwt';
 const AUTH_TOKEN = crypto.createHmac('sha256', SECRET).update(SUPERADMIN_PASS).digest('hex');
 
+function sha256(str) {
+  return crypto.createHash('sha256').update(str).digest('hex');
+}
+
 function validatePassword(p) {
   if (!p || p.length < 8) return 'Password troppo corta (min 8 caratteri)';
   if (!/[A-Z]/.test(p)) return 'Manca almeno una lettera maiuscola';
@@ -88,7 +92,7 @@ app.get('/api/users', requireAuth, async (req, res) => {
 app.post('/api/users', requireAuth, async (req, res) => {
   const { name, email, role, password } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'Nome ed email obbligatori' });
-  const hash = await bcrypt.hash(password || crypto.randomBytes(16).toString('hex'), 12);
+  const hash = await bcrypt.hash(sha256(password || crypto.randomBytes(16).toString('hex')), 12);
   try {
     const { rows } = await pool.query(
       'INSERT INTO users (name, email, role, password_hash) VALUES ($1,$2,$3,$4) RETURNING id, name, email, role, created_at',
@@ -106,7 +110,7 @@ app.put('/api/users/:id', requireAuth, async (req, res) => {
   if (!name || !email) return res.status(400).json({ error: 'Nome ed email obbligatori' });
   let query, params;
   if (password) {
-    const hash = await bcrypt.hash(password, 12);
+    const hash = await bcrypt.hash(sha256(password), 12);
     query = 'UPDATE users SET name=$1, email=$2, role=$3, password_hash=$4 WHERE id=$5 RETURNING id, name, email, role, created_at';
     params = [name, email, role || 'user', hash, req.params.id];
   } else {
@@ -128,7 +132,7 @@ app.post('/api/users/:id/set-password', requireAuth, async (req, res) => {
   const { password } = req.body;
   const pwErr = validatePassword(password);
   if (pwErr) return res.status(400).json({ error: pwErr });
-  const hash = await bcrypt.hash(password, 12);
+  const hash = await bcrypt.hash(sha256(password), 12);
   const { rows } = await pool.query(
     'UPDATE users SET password_hash=$1 WHERE id=$2 RETURNING id',
     [hash, req.params.id]
@@ -208,7 +212,7 @@ app.post('/api/reset-password', async (req, res) => {
   );
   if (!rows.length) return res.status(400).json({ error: 'Link non valido o scaduto' });
 
-  const hash = await bcrypt.hash(password, 12);
+  const hash = await bcrypt.hash(sha256(password), 12);
   await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, rows[0].user_id]);
   await pool.query('UPDATE password_reset_tokens SET used=TRUE WHERE id=$1', [rows[0].id]);
 
