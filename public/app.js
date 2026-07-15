@@ -66,6 +66,7 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
     document.getElementById(`tab-${tab}`).classList.remove('hidden');
     if (tab === 'associations') Promise.all([loadUsers(), loadTools()]).then(renderAssociations);
+    if (tab === 'logs') loadLogs();
   });
 });
 
@@ -410,6 +411,93 @@ async function removeToolFromUser(userId, toolId) {
   } catch (err) {
     showToast(err.message, 'error');
   }
+}
+
+// ── Login Logs ────────────────────────────────────────────────────────────────
+let allLogs = [];
+
+async function loadLogs() {
+  allLogs = await api('GET', '/api/login-logs?limit=200');
+  populateLogFilters();
+  renderLogs(allLogs);
+}
+
+function populateLogFilters() {
+  const users = [...new Map(allLogs.filter(l => l.user_id).map(l => [l.user_id, l])).values()];
+  const tools = [...new Map(allLogs.filter(l => l.tool_id).map(l => [l.tool_id, l])).values()];
+
+  const uSel = document.getElementById('logs-filter-user');
+  const tSel = document.getElementById('logs-filter-tool');
+  const uVal = uSel.value, tVal = tSel.value;
+
+  uSel.innerHTML = '<option value="">Tutti gli utenti</option>' +
+    users.map(l => `<option value="${l.user_id}">${esc(l.user_name)}</option>`).join('');
+  tSel.innerHTML = '<option value="">Tutti i tool</option>' +
+    tools.map(l => `<option value="${l.tool_id}">${esc(l.tool_name)}</option>`).join('');
+
+  uSel.value = uVal;
+  tSel.value = tVal;
+}
+
+function filterLogs() {
+  const uid = document.getElementById('logs-filter-user').value;
+  const tid = document.getElementById('logs-filter-tool').value;
+  const filtered = allLogs.filter(l =>
+    (!uid || String(l.user_id) === uid) &&
+    (!tid || String(l.tool_id) === tid)
+  );
+  renderLogs(filtered);
+}
+
+function renderLogs(logs) {
+  const tbody = document.getElementById('logs-tbody');
+  if (!logs.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nessun accesso registrato</td></tr>';
+    return;
+  }
+  tbody.innerHTML = logs.map(l => {
+    const dt = new Date(l.created_at);
+    const dateStr = dt.toLocaleDateString('it-IT');
+    const timeStr = dt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ua = parseUA(l.user_agent);
+    return `
+      <tr>
+        <td style="white-space:nowrap">
+          <span style="color:var(--text)">${dateStr}</span>
+          <span style="color:var(--text-muted);font-size:12px;margin-left:6px">${timeStr}</span>
+        </td>
+        <td>
+          ${l.user_name
+            ? `<strong>${esc(l.user_name)}</strong><br><span style="color:var(--text-muted);font-size:11px">${esc(l.user_email)}</span>`
+            : `<span style="color:var(--text-muted)">—</span>`}
+        </td>
+        <td>${l.tool_name
+          ? `<span class="tag">${esc(l.tool_name)}</span>`
+          : `<span style="color:var(--text-muted)">—</span>`}
+        </td>
+        <td>${l.success
+          ? `<span class="badge" style="background:rgba(34,197,94,.15);color:#86efac">✓ OK</span>`
+          : `<span class="badge" style="background:rgba(239,68,68,.12);color:#fca5a5">✕ Fallito</span>`}
+        </td>
+        <td style="color:var(--text-muted);font-size:12px;font-family:monospace">${esc(l.ip || '—')}</td>
+        <td style="color:var(--text-muted);font-size:12px">${esc(ua)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function parseUA(ua) {
+  if (!ua) return '—';
+  if (/mobile/i.test(ua)) {
+    if (/iphone|ipad/i.test(ua)) return 'iOS';
+    if (/android/i.test(ua)) return 'Android';
+    return 'Mobile';
+  }
+  if (/chrome/i.test(ua) && !/edg/i.test(ua)) return 'Chrome';
+  if (/safari/i.test(ua) && !/chrome/i.test(ua)) return 'Safari';
+  if (/firefox/i.test(ua)) return 'Firefox';
+  if (/edg/i.test(ua)) return 'Edge';
+  return ua.slice(0, 40);
 }
 
 // Close modals on overlay click

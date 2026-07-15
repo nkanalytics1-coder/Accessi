@@ -14,7 +14,17 @@ async function init() {
       expires_at TIMESTAMPTZ NOT NULL,
       used BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
-    )
+    );
+
+    CREATE TABLE IF NOT EXISTS login_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      tool_id INTEGER REFERENCES tools(id) ON DELETE SET NULL,
+      ip TEXT,
+      user_agent TEXT,
+      success BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 }
 

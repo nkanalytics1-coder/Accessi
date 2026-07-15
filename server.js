@@ -213,6 +213,84 @@ app.post('/api/reset-password', async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── USER LOGIN (chiamato dai tool esterni) ───────────────────────────────────
+// POST /api/user-login  { email, password, tool_slug? }
+// Risponde con { ok, user: {id,name,role}, tools: [...] }
+// e logga l'accesso nella tabella login_logs
+app.post('/api/user-login', async (req, res) => {
+  const { email, password, tool_slug } = req.body;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+  const ua = req.headers['user-agent'] || null;
+
+  if (!email || !password) return res.status(400).json({ error: 'Email e password obbligatori' });
+
+  const { rows: users } = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+  if (!users.length) {
+    await pool.query('INSERT INTO login_logs (ip, user_agent, success) VALUES ($1,$2,FALSE)', [ip, ua]);
+    return res.status(401).json({ error: 'Credenziali non valide' });
+  }
+
+  const user = users[0];
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) {
+    await pool.query('INSERT INTO login_logs (user_id, ip, user_agent, success) VALUES ($1,$2,$3,FALSE)', [user.id, ip, ua]);
+    return res.status(401).json({ error: 'Credenziali non valide' });
+  }
+
+  // Trova il tool se specificato
+  let toolId = null;
+  if (tool_slug) {
+    const { rows: tools } = await pool.query('SELECT id FROM tools WHERE slug=$1', [tool_slug]);
+    if (tools.length) toolId = tools[0].id;
+  }
+
+  // Verifica che l'utente abbia accesso al tool richiesto
+  if (toolId) {
+    const { rows: access } = await pool.query(
+      'SELECT 1 FROM user_tools WHERE user_id=$1 AND tool_id=$2', [user.id, toolId]
+    );
+    if (!access.length) {
+      await pool.query('INSERT INTO login_logs (user_id, tool_id, ip, user_agent, success) VALUES ($1,$2,$3,$4,FALSE)', [user.id, toolId, ip, ua]);
+      return res.status(403).json({ error: 'Accesso al tool non autorizzato' });
+    }
+  }
+
+  // Log accesso riuscito
+  await pool.query(
+    'INSERT INTO login_logs (user_id, tool_id, ip, user_agent, success) VALUES ($1,$2,$3,$4,TRUE)',
+    [user.id, toolId, ip, ua]
+  );
+
+  // Restituisce i tool assegnati all'utente
+  const { rows: userTools } = await pool.query(
+    `SELECT t.id, t.name, t.slug, t.url FROM tools t
+     JOIN user_tools ut ON ut.tool_id = t.id WHERE ut.user_id=$1`, [user.id]
+  );
+
+  res.json({
+    ok: true,
+    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    tools: userTools,
+  });
+});
+
+// ── LOGIN LOGS (admin) ────────────────────────────────────────────────────────
+app.get('/api/login-logs', requireAuth, async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '200'), 500);
+  const { rows } = await pool.query(`
+    SELECT
+      ll.id, ll.success, ll.ip, ll.user_agent, ll.created_at,
+      u.id   AS user_id,   u.name  AS user_name,  u.email AS user_email,
+      t.id   AS tool_id,   t.name  AS tool_name,  t.slug  AS tool_slug
+    FROM login_logs ll
+    LEFT JOIN users u ON u.id = ll.user_id
+    LEFT JOIN tools t ON t.id = ll.tool_id
+    ORDER BY ll.created_at DESC
+    LIMIT $1
+  `, [limit]);
+  res.json(rows);
+});
+
 // Tools
 app.get('/api/tools', requireAuth, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM tools ORDER BY created_at DESC');

@@ -48,6 +48,10 @@
         <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
         Associazioni
       </button>
+      <button class="nav-item" data-tab="logs">
+        <svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        Accessi
+      </button>
     </nav>
     <div class="sidebar-footer">
       <button id="logout-btn" class="btn btn-ghost">Logout</button>
@@ -108,6 +112,37 @@
         <h2>Associazioni Utente — Tool</h2>
       </div>
       <div id="assoc-container"></div>
+    </div>
+
+    <!-- TAB: ACCESSI -->
+    <div id="tab-logs" class="tab-pane hidden">
+      <div class="page-header">
+        <h2>Log Accessi</h2>
+        <div style="display:flex;gap:10px;align-items:center">
+          <select id="logs-filter-user" class="add-tool-select" style="min-width:160px" onchange="filterLogs()">
+            <option value="">Tutti gli utenti</option>
+          </select>
+          <select id="logs-filter-tool" class="add-tool-select" style="min-width:160px" onchange="filterLogs()">
+            <option value="">Tutti i tool</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="loadLogs()">↺ Aggiorna</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data / Ora</th>
+              <th>Utente</th>
+              <th>Tool</th>
+              <th>Esito</th>
+              <th>IP</th>
+              <th>Browser / Device</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody"></tbody>
+        </table>
+      </div>
     </div>
 
   </main>

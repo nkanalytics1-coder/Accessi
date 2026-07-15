@@ -123,6 +123,8 @@ tbody tr:hover { background: var(--surface2); }
 
 .empty-row td { text-align: center; color: var(--text-muted); padding: 32px; }
 
+#tab-logs .page-header { flex-wrap: wrap; gap: 12px; }
+
 .tools-select-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; max-height: 200px; overflow-y: auto; padding-right: 2px; }
 .tools-select-grid::-webkit-scrollbar { width: 4px; }
 .tools-select-grid::-webkit-scrollbar-track { background: transparent; }
