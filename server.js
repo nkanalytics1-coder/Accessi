@@ -222,37 +222,37 @@ app.post('/api/user-login', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
   const ua = req.headers['user-agent'] || null;
 
-  if (!email || !password) return res.status(400).json({ error: 'Email e password obbligatori' });
+  if (!email || !password || !tool_slug) return res.status(400).json({ error: 'Email, password e tool_slug sono obbligatori' });
 
+  // Verifica che il tool esista
+  const { rows: toolRows } = await pool.query('SELECT id, name FROM tools WHERE slug=$1', [tool_slug]);
+  if (!toolRows.length) {
+    await pool.query('INSERT INTO login_logs (ip, user_agent, success) VALUES ($1,$2,FALSE)', [ip, ua]);
+    return res.status(400).json({ error: 'Tool non riconosciuto' });
+  }
+  const toolId = toolRows[0].id;
+
+  // Verifica credenziali
   const { rows: users } = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
   if (!users.length) {
-    await pool.query('INSERT INTO login_logs (ip, user_agent, success) VALUES ($1,$2,FALSE)', [ip, ua]);
+    await pool.query('INSERT INTO login_logs (tool_id, ip, user_agent, success) VALUES ($1,$2,$3,FALSE)', [toolId, ip, ua]);
     return res.status(401).json({ error: 'Credenziali non valide' });
   }
 
   const user = users[0];
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
-    await pool.query('INSERT INTO login_logs (user_id, ip, user_agent, success) VALUES ($1,$2,$3,FALSE)', [user.id, ip, ua]);
+    await pool.query('INSERT INTO login_logs (user_id, tool_id, ip, user_agent, success) VALUES ($1,$2,$3,$4,FALSE)', [user.id, toolId, ip, ua]);
     return res.status(401).json({ error: 'Credenziali non valide' });
   }
 
-  // Trova il tool se specificato
-  let toolId = null;
-  if (tool_slug) {
-    const { rows: tools } = await pool.query('SELECT id FROM tools WHERE slug=$1', [tool_slug]);
-    if (tools.length) toolId = tools[0].id;
-  }
-
-  // Verifica che l'utente abbia accesso al tool richiesto
-  if (toolId) {
-    const { rows: access } = await pool.query(
-      'SELECT 1 FROM user_tools WHERE user_id=$1 AND tool_id=$2', [user.id, toolId]
-    );
-    if (!access.length) {
-      await pool.query('INSERT INTO login_logs (user_id, tool_id, ip, user_agent, success) VALUES ($1,$2,$3,$4,FALSE)', [user.id, toolId, ip, ua]);
-      return res.status(403).json({ error: 'Accesso al tool non autorizzato' });
-    }
+  // Verifica che l'utente abbia accesso al tool
+  const { rows: access } = await pool.query(
+    'SELECT 1 FROM user_tools WHERE user_id=$1 AND tool_id=$2', [user.id, toolId]
+  );
+  if (!access.length) {
+    await pool.query('INSERT INTO login_logs (user_id, tool_id, ip, user_agent, success) VALUES ($1,$2,$3,$4,FALSE)', [user.id, toolId, ip, ua]);
+    return res.status(403).json({ error: 'Accesso al tool non autorizzato' });
   }
 
   // Log accesso riuscito
