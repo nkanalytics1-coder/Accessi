@@ -2,6 +2,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const path = require('path');
 const { pool, init } = require('./db');
@@ -12,6 +13,7 @@ const PORT = process.env.PORT || 4000;
 const SUPERADMIN_USER = 'Superadmin';
 const SUPERADMIN_PASS = ')z5fmwkQVrBKao5LvQ0kqhxm';
 const SECRET = 'gu-secret-k9mP2xQ7rT4vL1nZ';
+const JWT_SECRET = SECRET + '-jwt';
 const AUTH_TOKEN = crypto.createHmac('sha256', SECRET).update(SUPERADMIN_PASS).digest('hex');
 
 function validatePassword(p) {
@@ -267,10 +269,71 @@ app.post('/api/user-login', async (req, res) => {
      JOIN user_tools ut ON ut.tool_id = t.id WHERE ut.user_id=$1`, [user.id]
   );
 
+  const token = jwt.sign(
+    { userId: user.id, email: user.email, name: user.name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
   res.json({
     ok: true,
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     tools: userTools,
+    token,
+  });
+});
+
+// ── VERIFY TOKEN (chiamato dai tool per le sessioni successive) ───────────────
+// POST /api/verify-token  { token, tool_slug }
+// Non richiede la password — usa il JWT restituito da /api/user-login
+app.post('/api/verify-token', async (req, res) => {
+  const { token, tool_slug } = req.body;
+  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress;
+  const ua = req.headers['user-agent'] || null;
+
+  if (!token || !tool_slug) return res.status(400).json({ error: 'token e tool_slug sono obbligatori' });
+
+  let payload;
+  try {
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    return res.status(401).json({ error: 'Token non valido o scaduto' });
+  }
+
+  // Verifica che il tool esista
+  const { rows: toolRows } = await pool.query('SELECT id, name FROM tools WHERE slug=$1', [tool_slug]);
+  if (!toolRows.length) return res.status(400).json({ error: 'Tool non riconosciuto' });
+  const toolId = toolRows[0].id;
+
+  // Verifica che l'utente esista ancora
+  const { rows: users } = await pool.query('SELECT id, name, email, role FROM users WHERE id=$1', [payload.userId]);
+  if (!users.length) return res.status(401).json({ error: 'Utente non trovato' });
+  const user = users[0];
+
+  // Verifica accesso al tool
+  const { rows: access } = await pool.query(
+    'SELECT 1 FROM user_tools WHERE user_id=$1 AND tool_id=$2', [user.id, toolId]
+  );
+  if (!access.length) {
+    await pool.query('INSERT INTO login_logs (user_id, tool_id, ip, user_agent, success) VALUES ($1,$2,$3,$4,FALSE)', [user.id, toolId, ip, ua]);
+    return res.status(403).json({ error: 'Accesso al tool non autorizzato' });
+  }
+
+  await pool.query(
+    'INSERT INTO login_logs (user_id, tool_id, ip, user_agent, success) VALUES ($1,$2,$3,$4,TRUE)',
+    [user.id, toolId, ip, ua]
+  );
+
+  const { rows: userTools } = await pool.query(
+    `SELECT t.id, t.name, t.slug, t.url FROM tools t
+     JOIN user_tools ut ON ut.tool_id = t.id WHERE ut.user_id=$1`, [user.id]
+  );
+
+  res.json({
+    ok: true,
+    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    tools: userTools,
+    token, // restituisce lo stesso token (non è cambiato)
   });
 });
 
